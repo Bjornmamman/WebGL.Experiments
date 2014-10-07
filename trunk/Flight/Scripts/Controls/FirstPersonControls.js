@@ -17,6 +17,10 @@ THREE.FirstPersonControls = function (object, domElement) {
     this.lookVertical = true;
     this.autoForward = false;
     // this.invertVertical = false;
+    this.bounding = new THREE.Box3(
+        new THREE.Vector3(Infinity, Infinity, -Infinity),
+        new THREE.Vector3(Infinity, Infinity, Infinity)
+    )
 
     this.activeLook = true;
 
@@ -220,12 +224,13 @@ THREE.FirstPersonControls = function (object, domElement) {
 
         if (this.moveForward || (this.autoForward && !this.moveBackward)) this.object.translateZ(-(actualMoveSpeed + this.autoSpeedFactor));
         if (this.moveBackward) this.object.translateZ(actualMoveSpeed);
-
+        
         if (this.moveLeft) this.object.translateX(-actualMoveSpeed);
         if (this.moveRight) this.object.translateX(actualMoveSpeed);
-
+        
         if (this.moveUp) this.object.translateY(actualMoveSpeed);
         if (this.moveDown) this.object.translateY(-actualMoveSpeed);
+        
 
         var actualLookSpeed = delta * this.lookSpeed;
 

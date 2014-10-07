@@ -1,8 +1,28 @@
 ﻿var Flight = this.Flight || {};
 
+
+Flight.Settings = {
+    BackgroundColor: 0xffffff
+}
+
 Flight.Utilities = (function ($, window, document, undefined) {
 
     return {
+        Load: {
+            Image: function (src, complete) {
+                var img = new Image();
+                img.src = src;
+
+                if (img.naturalHeight > 0 && img.naturalWidth > 0) {
+                    complete.call(img, src);
+                    return;
+                }
+
+                img.onload = function () {
+                    complete.call(img, src);
+                }
+            }
+        },
         Generate: {
             Topography: function (width, height) {
                 var data = new Uint8Array(width * height),
@@ -29,7 +49,6 @@ Flight.Utilities = (function ($, window, document, undefined) {
             },
 
             RandomHex: function (hex) {
-
                 return (hex += [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 'a', 'b', 'c', 'd', 'e', 'f'][Math.floor(Math.random() * 16)]) && (hex.length == 6) ? hex : Flight.Utilities.Generate.RandomHex(hex);
             },
 
@@ -73,7 +92,7 @@ Flight.Utilities = (function ($, window, document, undefined) {
 
 				return canvas;
 
-			}
+            }
         }
     }
 
@@ -82,11 +101,13 @@ Flight.Utilities = (function ($, window, document, undefined) {
 Flight.Scene = (function ($, window, document, undefined) {
     function Scene(container) {
         var _this = this;
+
         this.scene = new THREE.Scene({ fixedTimeStep: 1 / 120 });
-        //this.scene.fog = new THREE.FogExp2(0x000000, 0.0035);
+       // this.scene.fog = new THREE.FogExp2(Flight.Settings.BackgroundColor, 0.005);
 
         this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 10000);
         this.camera.position.set(0, 25, 0);
+
 
         var hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.9);
         hemiLight.position.set(100, 1000, 100);
@@ -108,9 +129,11 @@ Flight.Scene = (function ($, window, document, undefined) {
 
         this.scene.add(spotLight);
 
+
         this.renderer = new THREE.WebGLRenderer({ antialias: false, autoClear: false });
-        this.renderer.setClearColor(0x000000);
+        this.renderer.setClearColor(Flight.Settings.BackgroundColor);
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+
 
         $(window).on("resize", function () {
             _this.Resize.call(_this);
@@ -149,6 +172,11 @@ Flight.Player = (function ($, window, document, undefined) {
         this.controls.movementSpeed = 70;
         this.controls.lookSpeed = 0.1;
         this.controls.tiltFactor = 0.05;
+        this.controls.autoForward = true;
+        this.controls.bounding = new THREE.Box3(
+            new THREE.Vector3(-500, 10, -500),
+            new THREE.Vector3(500, 100, 500)
+        )
 
         $(window).on("resize", function () {
             _this.Resize.call(_this);
@@ -229,15 +257,32 @@ Flight.ElementIterator = (function ($, window, document, undefined) {
 Flight.World = (function ($, window, document, undefined) {
 
     function World(scene) {
-        this.ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(1000, 1000, 100, 100),
-            new THREE.MeshLambertMaterial({ color: 0x00ff00, wireframe: true, wireframeLinewidth: 1 }
-        ));
+        var _this = this;
 
-        this.ground.position.y = 0;
-        this.ground.rotation.x = -Math.PI / 2;
+        this.materials = [];
+        this.currenMaterial = 0;
 
-        scene.scene.add(this.ground);
+        var imageLoader = new THREE.ImageLoader();
+        imageLoader.load("/assets/textures/ground.jpg", function () {
+
+            var texture = THREE.ImageUtils.loadTexture("/assets/textures/ground.jpg");
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.needsUpdate = true;
+
+            _this.materials.push(new THREE.MeshLambertMaterial({ map: texture, transparent: true }));
+            _this.materials.push(new THREE.MeshPhongMaterial({ ambient: 0x030303, color: 0xdddddd, specular: 0x009900, shininess: 30, shading: THREE.SmoothShading, map: texture, transparent: true }));
+            _this.materials.push(new THREE.MeshBasicMaterial({ map: texture, transparent: true }));
+
+            this.ground = new THREE.Mesh(new THREE.PlaneGeometry(10000, 10000, 100, 100), _this.materials[_this.currenMaterial]);
+
+            this.ground.position.y = 0;
+            this.ground.rotation.x = -Math.PI / 2;
+
+            scene.scene.add(this.ground);
+        });
+
+        
     }
 
     return World;
@@ -304,7 +349,6 @@ Flight.Core = (function ($, window, document, undefined) {
             complete: function () {
                 scene = new Flight.Scene(container[0]);
                 world = new Flight.World(scene);
-                //element = new Flight.Element(scene, { color: "#" + Flight.Utilities.Generate.RandomHex("") });
                 elements = new Flight.ElementIterator(scene, {
                     count: 100,
                     bounding: new THREE.Box3(
