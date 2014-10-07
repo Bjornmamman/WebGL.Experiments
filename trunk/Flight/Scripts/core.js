@@ -1,5 +1,23 @@
 ﻿var Flight = this.Flight || {};
 
+if (!window.requestAnimationFrame) {
+
+    window.requestAnimationFrame = (function () {
+
+        return window.webkitRequestAnimationFrame ||
+		window.mozRequestAnimationFrame ||
+		window.oRequestAnimationFrame ||
+		window.msRequestAnimationFrame ||
+		function ( /* function FrameRequestCallback */ callback, /* DOMElement Element */ element) {
+
+		    window.setTimeout(callback, 1000 / 60);
+
+		};
+
+    })();
+
+}
+
 
 Flight.Settings = {
     BackgroundColor: 0xffffff
@@ -92,6 +110,44 @@ Flight.Utilities = (function ($, window, document, undefined) {
 
 				return canvas;
 
+            },
+
+            HeightData: function (img, width, height, scale) {
+
+                var size = width * height,
+                    data = new Float32Array(size);
+
+                if (scale == undefined)
+                    scale = 1;
+
+                for (var i = 0; i < size; i++) {
+                    data[i] = 0
+                }
+
+				var canvas = document.createElement("canvas");
+				canvas.width = width;
+				canvas.height = height;
+
+                var context = canvas.getContext("2d");
+                context.drawImage(img,0,0);
+
+                var imageData = context.getImageData(0, 0, width, height).data;
+                
+                var j = 0;
+                for (var i = 0; i < imageData.length; i +=4) {
+                    var all = imageData[i] + imageData[i + 1] + imageData[i + 2];
+                    data[j++] =  (all / 30) * scale;
+                }
+
+                return data;
+            },
+
+            AppendHeightData: function (plane, heightData) {
+                for (var i = 0, l = plane.vertices.length; i < l; i++) {
+                    plane.vertices[i].z = heightData[i];
+                }
+
+                return plane;
             }
         }
     }
@@ -159,6 +215,25 @@ Flight.Scene = (function ($, window, document, undefined) {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
+    Scene.prototype.AddMesh = function (geometry, scale, x, y, z, rx, ry, rz, material) {
+
+        var mesh = new THREE.Mesh(geometry, material);
+        mesh.scale.x = mesh.scale.y = mesh.scale.z = scale;
+        mesh.position.x = x;
+        mesh.position.y = y;
+        mesh.position.z = z;
+        mesh.rotation.x = rx;
+        mesh.rotation.y = ry;
+        mesh.rotation.z = rz;
+        mesh.overdraw = true;
+        mesh.doubleSided = false;
+        mesh.updateMatrix();
+
+        this.scene.addObject(mesh);
+
+        return mesh;
+    }
+
     return Scene;
 
 })(jQuery, window, document);
@@ -169,7 +244,7 @@ Flight.Player = (function ($, window, document, undefined) {
     function Player(scene) {
         var _this = this;
         this.controls = new THREE.FirstPersonControls(scene.camera);
-        this.controls.movementSpeed = 70;
+        this.controls.movementSpeed = 100;
         this.controls.lookSpeed = 0.1;
         this.controls.tiltFactor = 0.05;
         this.controls.autoForward = true;
@@ -262,24 +337,38 @@ Flight.World = (function ($, window, document, undefined) {
         this.materials = [];
         this.currenMaterial = 0;
 
+
         var imageLoader = new THREE.ImageLoader();
-        imageLoader.load("/assets/textures/ground.jpg", function () {
+        Flight.Utilities.Load.Image("/assets/textures/mountain_heightmap_300.jpg", function () {
 
-            var texture = THREE.ImageUtils.loadTexture("/assets/textures/ground.jpg");
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            texture.needsUpdate = true;
+            var heightData = Flight.Utilities.Generate.HeightData(this, 300, 300, 100);
 
-            _this.materials.push(new THREE.MeshLambertMaterial({ map: texture, transparent: true }));
-            _this.materials.push(new THREE.MeshPhongMaterial({ ambient: 0x030303, color: 0xdddddd, specular: 0x009900, shininess: 30, shading: THREE.SmoothShading, map: texture, transparent: true }));
-            _this.materials.push(new THREE.MeshBasicMaterial({ map: texture, transparent: true }));
+            _this.plane = new THREE.PlaneGeometry(10000, 10000, 300, 300);
 
-            this.ground = new THREE.Mesh(new THREE.PlaneGeometry(10000, 10000, 100, 100), _this.materials[_this.currenMaterial]);
+            Flight.Utilities.Generate.AppendHeightData(_this.plane, heightData);
 
-            this.ground.position.y = 0;
-            this.ground.rotation.x = -Math.PI / 2;
+            var texture = THREE.ImageUtils.loadTexture("/assets/textures/mountain_300.jpg", THREE.UVMapping, function (text) {
+                text.wrapS = THREE.RepeatWrapping;
+                text.wrapT = THREE.RepeatWrapping;
 
-            scene.scene.add(this.ground);
+                var mountainMaterial = new THREE.MeshPhongMaterial({
+                    map: texture,
+                    ambient: 0xaaaaaa,
+                    specular: 0xffffff,
+                    shininess: 0,
+                    shading: THREE.SmoothShading
+                });
+
+                this.ground = new THREE.Mesh(_this.plane, mountainMaterial);
+
+                this.ground.position.y = 0;
+                this.ground.rotation.x = -Math.PI / 2;
+
+                scene.scene.add(this.ground);
+            });
+
+            
+            
         });
 
         
