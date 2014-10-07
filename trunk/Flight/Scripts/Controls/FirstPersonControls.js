@@ -138,7 +138,6 @@ THREE.FirstPersonControls = function (object, domElement) {
     };
 
     this.onKeyDown = function (event) {
-
         //event.preventDefault();
 
         switch (event.keyCode) {
@@ -165,7 +164,6 @@ THREE.FirstPersonControls = function (object, domElement) {
     };
 
     this.onKeyUp = function (event) {
-
         switch (event.keyCode) {
 
             case 38: /*up*/
@@ -189,12 +187,12 @@ THREE.FirstPersonControls = function (object, domElement) {
 
     this.onMouseOver = function (event) {
         this.mouseOver = true;
+        this.freeze = false;
     };
 
     this.onMouseOut = function (event) {
         this.mouseOver = false;
-        this.mouseX = 0;
-        this.mouseY = 0;
+        this.freeze = true;
     };
 
     this.update = function (delta) {
