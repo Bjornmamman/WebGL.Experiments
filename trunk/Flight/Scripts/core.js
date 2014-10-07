@@ -24,6 +24,15 @@ Flight.Utilities = (function ($, window, document, undefined) {
                 return data;
             },
 
+            RandomRange: function (min, max) { 
+	            return Math.random()*(max-min) + min; 
+            },
+
+            RandomHex: function (hex) {
+
+                return (hex += [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 'a', 'b', 'c', 'd', 'e', 'f'][Math.floor(Math.random() * 16)]) && (hex.length == 6) ? hex : Flight.Utilities.Generate.RandomHex(hex);
+            },
+
             Texture: function( data, width, height ) {
 
 				var canvas, context, image, imageData,
@@ -74,7 +83,7 @@ Flight.Scene = (function ($, window, document, undefined) {
     function Scene(container) {
         var _this = this;
         this.scene = new THREE.Scene({ fixedTimeStep: 1 / 120 });
-        this.scene.fog = new THREE.FogExp2(0x000000, 0.0035);
+        //this.scene.fog = new THREE.FogExp2(0x000000, 0.0035);
 
         this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 10000);
         this.camera.position.set(0, 25, 0);
@@ -169,12 +178,23 @@ Flight.Player = (function ($, window, document, undefined) {
 
 Flight.Element = (function ($, window, document, undefined) {
 
-    function Element(scene) {
+    function Element(scene, settings) {
         this.el = new THREE.Mesh(
-            new THREE.SphereGeometry(10, 360, 602),
-            new THREE.MeshPhongMaterial({ ambient: 0xffffff, color: 0x00ff00, specular: 0x000000 })
+            new THREE.SphereGeometry(10, 32, 32),
+            new THREE.MeshPhongMaterial({
+                ambient: 0xffffff,
+                color: settings != undefined && settings.color != undefined ? settings.color : 0x00ff00,
+                specular: 0x000000
+            })
         );
-        this.el.position.y = 10;
+        
+        if (settings != undefined && settings.position != undefined) {
+            this.el.position.x = settings.position.x;
+            this.el.position.y = settings.position.y;
+            this.el.position.z = settings.position.z;
+        }
+            
+
         this.el.castShadow = true;
         this.el.receiveShadow = true;
 
@@ -188,20 +208,17 @@ Flight.Element = (function ($, window, document, undefined) {
 
 Flight.ElementIterator = (function ($, window, document, undefined) {
     
-    function ElementIterator(scene) {
-        this.el = new THREE.Mesh(
-            new THREE.SphereGeometry(10, 360, 602),
-            new THREE.MeshPhongMaterial({ ambient: 0xffffff, color: 0x00ff00, specular: 0x000000 })
-        );
-
-        this.el.position.y = 10;
-        this.el.castShadow = true;
-        this.el.receiveShadow = true;
-
-        scene.scene.add(this.el);
-    }
-
-    ElementIterator.prototype.Add = function(count, box) {
+    function ElementIterator(scene, settings) {
+        for (var i = 0; i < settings.count; i++) {
+            var element = new Flight.Element(scene, {
+                color: "#" + Flight.Utilities.Generate.RandomHex(""),
+                position: new THREE.Vector3(
+                    Flight.Utilities.Generate.RandomRange(settings.bounding.min.x, settings.bounding.max.x),
+                    Flight.Utilities.Generate.RandomRange(settings.bounding.min.y, settings.bounding.max.y),
+                    Flight.Utilities.Generate.RandomRange(settings.bounding.min.z, settings.bounding.max.z)
+                )
+            });
+        }
 
     }
 
@@ -216,13 +233,47 @@ Flight.World = (function ($, window, document, undefined) {
             new THREE.PlaneGeometry(1000, 1000, 100, 100),
             new THREE.MeshLambertMaterial({ color: 0x00ff00, wireframe: true, wireframeLinewidth: 1 }
         ));
-        this.ground.position.y = 0.1;
+
+        this.ground.position.y = 0;
         this.ground.rotation.x = -Math.PI / 2;
 
         scene.scene.add(this.ground);
     }
 
     return World;
+
+})(jQuery, window, document);
+
+Flight.Ticker = (function ($, window, document, undefined) {
+
+    function Ticker(calllbacks, complete, tick) {
+        this.clock = new THREE.Clock();
+        this.time = 0;
+
+        if (typeof (calllbacks.complete) == "function" && typeof (calllbacks.tick) == "function") {
+            calllbacks.complete.call(this);
+            this.tick = calllbacks.tick;
+
+            this.Animate();
+        }
+    }
+
+    Ticker.prototype.Animate = function () {
+        var _this = this;
+
+        window.requestAnimationFrame(this.Animate.bind(this));
+
+        this.Tick();
+    }
+
+    Ticker.prototype.Tick = function () {
+        var delta = this.clock.getDelta(),
+            time = this.clock.getElapsedTime() * 5;
+
+        this.tick.call(this, delta, time);
+    }
+
+    return Ticker;
 
 })(jQuery, window, document);
 
@@ -233,8 +284,10 @@ Flight.Core = (function ($, window, document, undefined) {
         scene,
         player,
         element,
+        elements,
         clock,
-        world;
+        world,
+        ticker;
 
     function init() {
         container = $("#container");
@@ -243,30 +296,29 @@ Flight.Core = (function ($, window, document, undefined) {
             container.empty();
 
             generateScene();
-
-            animate();
         }
     }
 
     function generateScene() {
-        clock = new THREE.Clock();
+        ticker = new Flight.Ticker({
+            complete: function () {
+                scene = new Flight.Scene(container[0]);
+                world = new Flight.World(scene);
+                //element = new Flight.Element(scene, { color: "#" + Flight.Utilities.Generate.RandomHex("") });
+                elements = new Flight.ElementIterator(scene, {
+                    count: 100,
+                    bounding: new THREE.Box3(
+                        new THREE.Vector3(-500, 10, -500),
+                        new THREE.Vector3(500, 100, 500)
+                    )
+                });
 
-        scene = new Flight.Scene(container[0]);
-        world = new Flight.World(scene);
-        element = new Flight.Element(scene);
-        player = new Flight.Player(scene);
-    }
-
-    function animate() {
-        requestAnimationFrame(animate);
-        render();
-    }
-
-    function render() {
-        var delta = clock.getDelta(),
-            time = clock.getElapsedTime() * 5;
-
-        scene.Update(delta);
+                player = new Flight.Player(scene);
+            },
+            tick: function(delta, time) {
+                scene.Update(delta);
+            }
+        });
     }
 
     return {

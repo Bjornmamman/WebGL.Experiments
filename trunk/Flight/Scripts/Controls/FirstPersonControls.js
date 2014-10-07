@@ -50,6 +50,8 @@ THREE.FirstPersonControls = function (object, domElement) {
     this.viewHalfX = 0;
     this.viewHalfY = 0;
 
+    this.mouseOver = false;
+
     if (this.domElement !== document) {
 
         this.domElement.setAttribute('tabindex', -1);
@@ -121,7 +123,6 @@ THREE.FirstPersonControls = function (object, domElement) {
     };
 
     this.onMouseMove = function (event) {
-
         if (this.domElement === document) {
 
             this.mouseX = event.pageX - this.viewHalfX;
@@ -184,6 +185,16 @@ THREE.FirstPersonControls = function (object, domElement) {
 
         }
 
+    };
+
+    this.onMouseOver = function (event) {
+        this.mouseOver = true;
+    };
+
+    this.onMouseOut = function (event) {
+        this.mouseOver = false;
+        this.mouseX = 0;
+        this.mouseY = 0;
     };
 
     this.update = function (delta) {
@@ -265,6 +276,8 @@ THREE.FirstPersonControls = function (object, domElement) {
     this.domElement.addEventListener('mousemove', bind(this, this.onMouseMove), false);
     this.domElement.addEventListener('mousedown', bind(this, this.onMouseDown), false);
     this.domElement.addEventListener('mouseup', bind(this, this.onMouseUp), false);
+    this.domElement.addEventListener('mouseover', bind(this, this.onMouseOver), false);
+    this.domElement.addEventListener('mouseout', bind(this, this.onMouseOut), false);
 
     window.addEventListener('keydown', bind(this, this.onKeyDown), false);
     window.addEventListener('keyup', bind(this, this.onKeyUp), false);
